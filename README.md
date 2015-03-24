@@ -12,19 +12,21 @@ An easy-to-use php library for reacting to [GitHub Webhooks](https://developer.g
 * Output a list of changes, viewable from the GitHub Webhook settings page
 
 ## Example of use:
-    <?php
-    require_once 'mt-github-webhook.php';
-    
-    \MT\GitHub\Webhook::onPushToBranch('qa-testing')->
-                        forChangesInFolder('main-web-site/public_html')->
-                        setGitHubCredentials('github-username', 'My5ecretP@ssw0rd')->
-                        pushChangesToFolder('/www/sites/qa.domain.com/public_html');
-    
-    \MT\GitHub\Webhook::onPushToBranch('production')->
-                        forChangesInFolder('main-web-site/public_html')->
-                        setGitHubCredentials('github-username', 'My5ecretP@ssw0rd')->
-                        pushChangesToFolder('/www/sites/www.domain.com/public_html');
-    ?>
+```php
+<?php
+require_once 'mt-github-webhook.php';
+
+\MT\GitHub\Webhook::onPushToBranch('qa-testing')->
+                    forChangesInFolder('main-web-site/public_html')->
+                    setGitHubCredentials('github-username', 'My5ecretP@ssw0rd')->
+                    pushChangesToFolder('/www/sites/qa.domain.com/public_html');
+
+\MT\GitHub\Webhook::onPushToBranch('production')->
+                    forChangesInFolder('main-web-site/public_html')->
+                    setGitHubCredentials('github-username', 'My5ecretP@ssw0rd')->
+                    pushChangesToFolder('/www/sites/www.domain.com/public_html');
+?>
+```
 
 ### How-to
 1. Put something like the code above in a .php file and put it on your web server. Be sure to provide the correct branch names, folder names, GitHub user account name and password.
