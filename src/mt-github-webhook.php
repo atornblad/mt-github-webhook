@@ -29,18 +29,17 @@ namespace MT\GitHub;
 /**
  * Contains methods for reacting to GitHub Webhook events
  * 
- * This is a static class, currently containing just one useful method.
- * 
  * @link    http://atornblad.se/labels/mt-github-webhook
  */
 class Webhook {
+	private static $rawInput;
 	private static $input;
 	private static $eventName;
 	
 	private static function ensureInitDone() {
 		if (!isset(Webhook::$input)) {
-			$jsonencodedInput = file_get_contents('php://input');
-			Webhook::$input = json_decode($jsonencodedInput);
+			Webhook::$rawInput = file_get_contents('php://input');
+			Webhook::$input = json_decode(Webhook::$rawInput);
 			Webhook::$eventName = strtolower(@$_SERVER['HTTP_X_GITHUB_EVENT']);
 		}
 	}
@@ -58,6 +57,25 @@ class Webhook {
 			return new WebhookPushHandler($branchName, Webhook::$input->repository->full_name, Webhook::$input->commits);
 		} else {
 			return WebhookPushHandler::createDummy();
+		}
+	}
+	
+	/**
+	 * Check the X-Hub-Signature request header
+	 *
+	 * @param string $secret The secret phrase entered in the GitHub Webhook management page.
+	 * @return bool
+	 */
+	public static function isRequestSecure($secret) {
+		Webhook::ensureInitDone();
+		
+		$serverSig = @$_SERVER['HTTP_X_HUB_SIGNATURE'];;
+		if ($serverSig) {
+			$expected = 'sha1=' . hash_hmac('sha1', Webhook::$rawInput, $secret, false );
+			
+			return ($expected == $serverSig);
+		} else {
+			return false;
 		}
 	}
 }
@@ -114,7 +132,22 @@ class WebhookPushHandler {
 	}
 	
 	/**
-	 * Sets GitHub credentials for downloading raw contents using HTTP Authentication.
+	 * Terminates the request with a 403 Forbidden if request is not secure
+	 * 
+	 * @param string $secret The secret phrase entered in the GitHub Webhook management page.
+	 * @return \MT\GitHub\WebhookPushHandler
+	 */
+	public function validateSecretOrDie($secret) {
+		if (Webhook::isRequestSecure($secret)) {
+			return $this;
+		} else {
+			http_response_code(403);
+			exit('Correct signature was not provided. Check the SECRET in your repository Webhook settings.');
+		}
+	}
+	
+	/**
+	 * Sets username and password for communication with GitHub servers.
 	 * 
 	 * @param string $username GitHub username.
 	 * @param string $password GitHub password.
@@ -132,7 +165,7 @@ class WebhookPushHandler {
 	}
 	
 	/**
-	 * Looks for changes in a specific folder only.
+	 * Filters changes by directory name.
 	 * 
 	 * @param string $folderName Name of folder relative to the repo/branch root.
 	 * @return \MT\GitHub\WebhookPushHandler
@@ -162,14 +195,40 @@ class WebhookPushHandler {
 			if ($this->folderName) {
 				if (substr($path, 0, $pathStartLen) == $pathStart) {
 					$localName = substr($path, $pathStartLen);
-					$callback($localName, $changeType);
+					call_user_func_array($callback, [$localName, $changeType]);
 				}
 			} else {
-				$callback($path, $changeType);
+				call_user_func_array($callback, [$path, $changeType]);
 			}
 		}
 		
 		return $this;
+	}
+	
+	/**
+	 * Invokes a callback function, passing all changes as an associative array.
+	 * 
+	 * The callback function must take one parameter. When invoked, the argument value
+	 * is an associative array where the keys are paths, and each value is the type
+	 * of change, from [ 'added', 'modified', 'removed' ]
+	 * 
+	 * @param callable $callback Function that gets an associative array as an argument
+	 */
+	public function invokeWithArrayOfChanges(callable $callback) {
+		call_user_func_array($callback, [ $this->changes ]);
+		return $this;
+	}
+	
+	/**
+	 * Invokes a callback function once for each change
+	 * 
+	 * The callback function must take two parameters. The first is the path of the
+	 * changed file, the second is the type of change, from [ 'added', 'modified', 'removed' ]
+	 * 
+	 * @param callable $callback Function that gets path and change-type as arguments
+	 */
+	public function invokeForEachChange(callable $callback) {
+		return $this->handleChanges($callback);
 	}
 	
 	/**
@@ -185,9 +244,8 @@ class WebhookPushHandler {
 		echo "$path: $changeType\r\n";
 	}
 	
-	
 	/**
-	 * Pushes the changes relative to the directory being watched, to a local server directory.
+	 * Pushes the changes to a local server directory.
 	 * 
 	 * @param string $folder Name of local server directory to receive changes.
 	 * @return \MT\GitHub\WebhookPushHandler
