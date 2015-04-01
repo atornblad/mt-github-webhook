@@ -90,6 +90,7 @@ class WebhookPushHandler {
 	private $folderName;
 	private $changes;
 	private $curlUserPwd;
+	private $addThisComment;
 	
 	public function __construct($branchName, $repositoryFullName, $commits = null) {
 		$this->branchName = $branchName;
@@ -97,6 +98,7 @@ class WebhookPushHandler {
 		$this->isActive = true;
 		$this->folderName = '';
 		$this->curlUserPwd = '';
+		$this->addThisComment = '';
 		
 		if (isset($commits)) {
 			$this->parseCommits($commits);
@@ -159,7 +161,7 @@ class WebhookPushHandler {
 	}
 	
 	public static function createDummy() {
-		$result = new WebhookPushHandler(null);
+		$result = new WebhookPushHandler(null, '');
 		$result->isActive = false;
 		return $result;
 	}
@@ -254,6 +256,20 @@ class WebhookPushHandler {
 		return $this->handleChanges(function($a, $b) use ($folder) { $this->pushChange($a, $b, $folder); });
 	}
 	
+	/**
+	 * Sets a comment to be included automatically, whenever possible.
+	 *
+	 * Looks at the file name extension, and in some cases the
+	 * file contents, to determine how to add the comment
+	 * @param string $comment
+	 * @return \MT\GitHub\WebhookPushHandler
+	 */
+	public function setComment($comment) {
+		$this->addThisComment = $comment;
+		
+		return $this;
+	}
+	
 	private function pushChange($path, $changeType, $folder) {
 		$targetPath = "$folder/$path";
 		
@@ -287,6 +303,37 @@ class WebhookPushHandler {
 			curl_exec($curl);
 			curl_close($curl);
 			fclose($output);
+			
+			if ($this->addThisComment) {
+				$this->applyComment($targetPath, $this->addThisComment);
+			}
+		}
+	}
+	
+	private function applyComment($path, $comment) {
+		$lowerPath = mb_strtolower($path);
+		
+		if (substr($lowerPath, -4) == '.php') {
+			$temp = file_get_contents($path);
+			if (substr($temp, 0, 5) == '<?php') {
+				$temp = "<?php\r\n/* $comment */" . substr($temp, 5);
+				file_put_contents($path, $temp);
+				echo "Added PHP comment\r\n";
+			}
+		}
+		
+		if (substr($lowerPath, -4) == '.css') {
+			$temp = file_get_contents($path);
+			$temp = "/* $comment */\r\n" . $temp;
+			file_put_contents($path, $temp);
+			echo "Added CSS comment\r\n";
+		}
+		
+		if (substr($lowerPath, -3) == '.js') {
+			$temp = file_get_contents($path);
+			$temp = "/* $comment */\r\n" . $temp;
+			file_put_contents($path, $temp);
+			echo "Added JS comment\r\n";
 		}
 	}
 }

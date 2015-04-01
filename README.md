@@ -22,6 +22,7 @@ require_once 'mt-github-webhook.php';
 \MT\GitHub\Webhook::onPushToBranch('qa-testing')->
                     validateSecretOrDie('SECRET-PHRASE')->
                     forChangesInFolder('main-web-site/public_html')->
+					setComment('Updated on ' . date())
                     setGitHubCredentials('github-username', 'My5ecretP@ssw0rd')->
                     pushChangesToFolder('/www/sites/qa.domain.com/public_html');
 
@@ -47,4 +48,4 @@ The repository settings page has a **Recent deliveries** section. If you need to
 ## Future plans:
 * Examining the use of `OAUTH-TOKEN` instead of HTTP authentication
 * Reacting intelligently to other events than just `PUSH`
-* Providing more different actions to take than just listing changes or pushing them into a directory
+* Providing more predefined actions to take
